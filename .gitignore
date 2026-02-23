@@ -1,0 +1,37 @@
+# dependencies
+/node_modules
+
+# production
+/build
+
+# misc
+*.pem
+
+# debug
+npm-debug.log*
+
+# local env files
+.env
+.env.*
+.env*.local
+
+# typescript
+*.tsbuildinfo
+
+# plugin build output
+plugin/dist/
+
+# Claude Code
+.claude/
+CLAUDE.md
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db

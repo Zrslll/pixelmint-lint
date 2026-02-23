@@ -1,0 +1,38 @@
+{
+  "name": "pixelmint",
+  "version": "1.0.0",
+  "description": "Open-source Figma plugin for automated design linting — zero config, style matching, auto-fix",
+  "private": true,
+  "license": "MIT",
+  "keywords": ["figma", "plugin", "lint", "design-system"],
+  "scripts": {
+    "dev:ui": "vite build --watch --config vite.config.ts",
+    "dev:sandbox": "esbuild plugin/code.ts --bundle --outfile=plugin/dist/code.js --target=es6 --watch",
+    "dev": "concurrently \"npm:dev:sandbox\" \"npm:dev:ui\"",
+    "build:ui": "vite build --config vite.config.ts",
+    "build:sandbox": "esbuild plugin/code.ts --bundle --outfile=plugin/dist/code.js --target=es6 --minify",
+    "build": "npm run build:sandbox && npm run build:ui",
+    "prettier:check": "prettier --check .",
+    "prettier:write": "prettier --write ."
+  },
+  "dependencies": {
+    "@figma/plugin-typings": "*",
+    "react": "18.2.0",
+    "react-dom": "18.2.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.19.0",
+    "@types/react": "18.2.15",
+    "@types/react-dom": "18.2.7",
+    "@vitejs/plugin-react": "^5.1.4",
+    "autoprefixer": "10.4.14",
+    "concurrently": "^8.2.0",
+    "esbuild": "^0.18.12",
+    "postcss": "8.4.26",
+    "prettier": "^3.0.0",
+    "tailwindcss": "3.3.3",
+    "typescript": "5.1.6",
+    "vite": "^7.3.1",
+    "vite-plugin-singlefile": "^2.3.0"
+  }
+}
