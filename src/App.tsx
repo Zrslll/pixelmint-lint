@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import {
   Violation,
   LintResult,
@@ -9,6 +9,9 @@ import {
   UIMessage,
   Category,
   Severity,
+  FixAction,
+  FixFailure,
+  FixResult,
 } from '@/lib/types';
 
 // ============================================================
@@ -110,6 +113,80 @@ function scoreBg(score: number): string {
   return 'bg-red-50 border-red-200';
 }
 
+function violationKey(v: Violation): string {
+  return [
+    v.nodeId,
+    v.ruleId,
+    v.suggestedFixData || '',
+    v.suggestedCreateData || '',
+    v.message || '',
+  ].join('|');
+}
+
+function defaultFixAction(v: Violation): FixAction {
+  if (!v.suggestedFixData && v.suggestedCreateData) return 'createStyle';
+  switch (v.ruleId) {
+    case 'hiddenLayers':
+    case 'emptyContainers':
+      return 'removeNode';
+    case 'singleChildFrame':
+      return 'unwrapFrame';
+    case 'groupInsteadOfFrame':
+      return 'convertGroup';
+    case 'zeroOpacity':
+      return 'changeVisibility';
+    default:
+      return 'default';
+  }
+}
+
+function isRiskyFixAction(action: FixAction): boolean {
+  return (
+    action === 'createStyle' ||
+    action === 'removeNode' ||
+    action === 'unwrapFrame' ||
+    action === 'convertGroup' ||
+    action === 'changeVisibility'
+  );
+}
+
+function fixActionButtonLabel(action: FixAction): string {
+  switch (action) {
+    case 'createStyle':
+      return 'Confirm create';
+    case 'removeNode':
+      return 'Confirm remove';
+    case 'unwrapFrame':
+      return 'Confirm unwrap';
+    case 'convertGroup':
+      return 'Confirm convert';
+    case 'changeVisibility':
+      return 'Confirm show';
+    case 'applyExistingStyle':
+      return 'Apply';
+    default:
+      return 'Fix';
+  }
+}
+
+function fixActionConfirmText(action: FixAction, violation: Violation): string {
+  const name = violation.nodeName || violation.ruleId;
+  switch (action) {
+    case 'createStyle':
+      return `Create a new style for "${name}"?`;
+    case 'removeNode':
+      return `Remove "${name}"? This cannot be undone by the plugin.`;
+    case 'unwrapFrame':
+      return `Unwrap "${name}" and move its child to the parent?`;
+    case 'convertGroup':
+      return `Convert group "${name}" to a frame?`;
+    case 'changeVisibility':
+      return `Make "${name}" visible by changing opacity to 100%?`;
+    default:
+      return `Apply fix to "${name}"?`;
+  }
+}
+
 // ============================================================
 // Main Component
 // ============================================================
@@ -123,12 +200,10 @@ export default function Plugin() {
   const [settings, setSettings] = useState<LintSettings>(DEFAULT_SETTINGS);
   const [error, setError] = useState<string | null>(null);
   const [fixedViolations, setFixedViolations] = useState<Violation[]>([]);
+  const [lastFixResult, setLastFixResult] = useState<FixResult | null>(null);
   const [reportTab, setReportTab] = useState<'issues' | 'completed'>('issues');
   const [collapsedCats, setCollapsedCats] = useState<Set<string>>(new Set());
   const [showLimit, setShowLimit] = useState<Record<string, number>>({});
-  const pendingFixRef = useRef<
-    { type: 'single'; violation: Violation } | { type: 'bulk'; violations: Violation[] } | null
-  >(null);
 
   const toggleCat = useCallback((cat: string) => {
     setCollapsedCats((prev) => {
@@ -169,40 +244,18 @@ export default function Plugin() {
           break;
 
         case 'LINT_FIX_DONE':
-          if (msg.fixedCount > 0 && pendingFixRef.current) {
-            const pending = pendingFixRef.current;
-            if (pending.type === 'single') {
-              setFixedViolations((prev) => [...prev, pending.violation]);
-              setResult((prev) => {
-                if (!prev) return prev;
-                return {
-                  ...prev,
-                  violations: prev.violations.filter(
-                    (v) =>
-                      !(
-                        v.nodeId === pending.violation.nodeId &&
-                        v.ruleId === pending.violation.ruleId
-                      )
-                  ),
-                };
-              });
-            } else {
-              const keys = new Set(pending.violations.map((v) => v.nodeId + ':' + v.ruleId));
-              setFixedViolations((prev) => [...prev, ...pending.violations]);
-              setResult((prev) => {
-                if (!prev) return prev;
-                return {
-                  ...prev,
-                  violations: prev.violations.filter((v) => !keys.has(v.nodeId + ':' + v.ruleId)),
-                };
-              });
-            }
-            pendingFixRef.current = null;
-            setLoading(true);
-            setProgress({ current: 0, total: 0, ruleName: '' });
-            sendToPlugin({ type: 'LINT_RUN' });
-          } else {
-            pendingFixRef.current = null;
+          setLoading(false);
+          setLastFixResult(msg);
+          if (msg.fixedViolations.length > 0) {
+            const fixedKeys = new Set(msg.fixedViolations.map(violationKey));
+            setFixedViolations((prev) => [...prev, ...msg.fixedViolations]);
+            setResult((prev) => {
+              if (!prev) return prev;
+              return {
+                ...prev,
+                violations: prev.violations.filter((v) => !fixedKeys.has(violationKey(v))),
+              };
+            });
           }
           break;
 
@@ -230,6 +283,7 @@ export default function Plugin() {
     setError(null);
     setProgress({ current: 0, total: 0, ruleName: '' });
     setFixedViolations([]);
+    setLastFixResult(null);
     setReportTab('issues');
     sendToPlugin({ type: 'LINT_RUN' });
   }, []);
@@ -252,7 +306,8 @@ export default function Plugin() {
         if (fixType === 'warnings') return v.severity === 'warning';
         return true;
       });
-      pendingFixRef.current = { type: 'bulk', violations: toFix };
+      if (toFix.length === 0) return;
+      setLastFixResult(null);
       sendToPlugin({
         type: 'LINT_FIX',
         fixType,
@@ -262,9 +317,12 @@ export default function Plugin() {
     [result]
   );
 
-  const handleFixSingle = useCallback((violation: Violation) => {
-    pendingFixRef.current = { type: 'single', violation };
-    sendToPlugin({ type: 'LINT_FIX_SINGLE', violation });
+  const handleFixSingle = useCallback((violation: Violation, fixAction?: FixAction) => {
+    const action = fixAction || defaultFixAction(violation);
+    const confirmed = isRiskyFixAction(action);
+    if (confirmed && !window.confirm(fixActionConfirmText(action, violation))) return;
+    setLastFixResult(null);
+    sendToPlugin({ type: 'LINT_FIX_SINGLE', violation, fixAction: action, confirmed });
   }, []);
 
   const handleSaveSettings = useCallback((newSettings: LintSettings) => {
@@ -381,6 +439,15 @@ export default function Plugin() {
       (acc[v.category] = acc[v.category] || []).push(v);
       return acc;
     }, {});
+    const fixFeedback = new Map<string, FixFailure>();
+    if (lastFixResult) {
+      for (const failure of [
+        ...lastFixResult.failedFixes,
+        ...lastFixResult.pendingConfirmationFixes,
+      ]) {
+        fixFeedback.set(violationKey(failure.violation), failure);
+      }
+    }
 
     return (
       <div className="min-h-screen bg-white">
@@ -473,6 +540,27 @@ export default function Plugin() {
             </div>
           )}
 
+          {lastFixResult && (
+            <div className="mt-2 rounded border border-blue-100 bg-blue-50 p-2 text-xs text-blue-900">
+              <div className="font-medium">
+                Fixed {lastFixResult.fixedCount}. {lastFixResult.pendingConfirmationCount} need
+                confirmation. {lastFixResult.failedCount} failed.
+              </div>
+              {(lastFixResult.pendingConfirmationFixes.length > 0 ||
+                lastFixResult.failedFixes.length > 0) && (
+                <div className="mt-1 space-y-1">
+                  {[...lastFixResult.pendingConfirmationFixes, ...lastFixResult.failedFixes]
+                    .slice(0, 3)
+                    .map((failure, i) => (
+                      <div key={`${violationKey(failure.violation)}-${failure.action}-${i}`}>
+                        {failure.violation.nodeName || failure.violation.ruleId}: {failure.reason}
+                      </div>
+                    ))}
+                </div>
+              )}
+            </div>
+          )}
+
           <div className="flex gap-1 mt-2 border-b border-gray-100 pb-0">
             <button
               onClick={() => setReportTab('issues')}
@@ -529,99 +617,101 @@ export default function Plugin() {
                     </button>
                     {!collapsed && (
                       <div className="space-y-1">
-                        {visible.map((v, i) => (
-                          <div
-                            key={`${v.nodeId}-${v.ruleId}-${i}`}
-                            className={`p-2 rounded border ${SEVERITY_BG[v.severity]}`}
-                          >
-                            <div className="flex items-start gap-2">
-                              <SeverityIcon severity={v.severity} />
-                              <div className="flex-1 min-w-0">
-                                <div className="flex items-center gap-1">
-                                  {v.nodeId ? (
-                                    <button
-                                      onClick={() => handleNavigate(v.nodeId)}
-                                      className="text-xs font-medium text-blue-600 hover:underline max-w-full text-left"
-                                      title="Click to zoom to element"
-                                    >
-                                      {v.nodeName || v.ruleId}
-                                    </button>
-                                  ) : (
-                                    <span className="text-xs font-medium text-gray-600">
-                                      {v.nodeName || 'File-level'}
-                                    </span>
-                                  )}
-                                  {v.isMainComponent && (
-                                    <span className="text-xs px-1 py-1 rounded bg-purple-100 text-purple-600 shrink-0">
-                                      Main Component
-                                    </span>
-                                  )}
-                                  {v.isInstance && (
-                                    <span className="text-xs px-1 py-1 rounded bg-orange-100 text-orange-600 shrink-0">
-                                      Edit master component
-                                    </span>
-                                  )}
-                                </div>
-                                <p className="text-xs text-gray-600 mt-1">
-                                  {v.message}
-                                  {v.ruleId === 'hiddenLayers' && (
-                                    <span className="text-xs text-red-700 font-medium">
-                                      {' '}
-                                      &mdash; layer will be removed
-                                    </span>
-                                  )}
-                                </p>
-                                {(v.current || v.expected) && v.ruleId !== 'hiddenLayers' && (
-                                  <div className="flex flex-wrap gap-1 mt-1 text-xs min-w-0">
-                                    {v.current && (
-                                      <span className="text-red-700 bg-red-50 px-1 rounded break-all min-w-0">
-                                        {v.current}
+                        {visible.map((v, i) => {
+                          const feedback = fixFeedback.get(violationKey(v));
+                          const action = defaultFixAction(v);
+                          return (
+                            <div
+                              key={`${v.nodeId}-${v.ruleId}-${i}`}
+                              className={`p-2 rounded border ${SEVERITY_BG[v.severity]}`}
+                            >
+                              <div className="flex items-start gap-2">
+                                <SeverityIcon severity={v.severity} />
+                                <div className="flex-1 min-w-0">
+                                  <div className="flex items-center gap-1">
+                                    {v.nodeId ? (
+                                      <button
+                                        onClick={() => handleNavigate(v.nodeId)}
+                                        className="text-xs font-medium text-blue-600 hover:underline max-w-full text-left"
+                                        title="Click to zoom to element"
+                                      >
+                                        {v.nodeName || v.ruleId}
+                                      </button>
+                                    ) : (
+                                      <span className="text-xs font-medium text-gray-600">
+                                        {v.nodeName || 'File-level'}
                                       </span>
                                     )}
-                                    {v.expected && (
-                                      <span className="text-green-700 bg-green-50 px-1 rounded break-all min-w-0">
-                                        {v.expected}
+                                    {v.isMainComponent && (
+                                      <span className="text-xs px-1 py-1 rounded bg-purple-100 text-purple-600 shrink-0">
+                                        Main Component
+                                      </span>
+                                    )}
+                                    {v.isInstance && (
+                                      <span className="text-xs px-1 py-1 rounded bg-orange-100 text-orange-600 shrink-0">
+                                        Edit master component
                                       </span>
                                     )}
                                   </div>
-                                )}
-                              </div>
-                              <div className="flex gap-1 shrink-0">
-                                {v.suggestedFixData && (
-                                  <button
-                                    onClick={() => handleFixSingle(v)}
-                                    className="text-xs px-2 py-1 rounded bg-blue-100 text-blue-700 hover:bg-blue-200"
-                                    title={`Apply style: ${v.expected || ''}`}
-                                  >
-                                    Apply
-                                  </button>
-                                )}
-                                {v.suggestedCreateData && (
-                                  <button
-                                    onClick={() =>
-                                      handleFixSingle({
-                                        ...v,
-                                        suggestedFixData: 'new:' + v.suggestedCreateData,
-                                      })
-                                    }
-                                    className="text-xs px-2 py-1 rounded bg-green-100 text-green-700 hover:bg-green-200"
-                                    title={`Create new style: ${v.suggestedCreateData}`}
-                                  >
-                                    New
-                                  </button>
-                                )}
-                                {v.fixable && !v.suggestedFixData && !v.suggestedCreateData && (
-                                  <button
-                                    onClick={() => handleFixSingle(v)}
-                                    className="text-xs px-2 py-1 rounded bg-blue-100 text-blue-700 hover:bg-blue-200"
-                                  >
-                                    Fix
-                                  </button>
-                                )}
+                                  <p className="text-xs text-gray-600 mt-1">
+                                    {v.message}
+                                    {v.ruleId === 'hiddenLayers' && (
+                                      <span className="text-xs text-red-700 font-medium">
+                                        {' '}
+                                        &mdash; layer will be removed
+                                      </span>
+                                    )}
+                                  </p>
+                                  {(v.current || v.expected) && v.ruleId !== 'hiddenLayers' && (
+                                    <div className="flex flex-wrap gap-1 mt-1 text-xs min-w-0">
+                                      {v.current && (
+                                        <span className="text-red-700 bg-red-50 px-1 rounded break-all min-w-0">
+                                          {v.current}
+                                        </span>
+                                      )}
+                                      {v.expected && (
+                                        <span className="text-green-700 bg-green-50 px-1 rounded break-all min-w-0">
+                                          {v.expected}
+                                        </span>
+                                      )}
+                                    </div>
+                                  )}
+                                  {feedback && (
+                                    <p className="text-xs text-red-700 mt-1">{feedback.reason}</p>
+                                  )}
+                                </div>
+                                <div className="flex gap-1 shrink-0">
+                                  {v.suggestedFixData && (
+                                    <button
+                                      onClick={() => handleFixSingle(v, 'applyExistingStyle')}
+                                      className="text-xs px-2 py-1 rounded bg-blue-100 text-blue-700 hover:bg-blue-200"
+                                      title={`Apply style: ${v.expected || ''}`}
+                                    >
+                                      Apply
+                                    </button>
+                                  )}
+                                  {v.suggestedCreateData && (
+                                    <button
+                                      onClick={() => handleFixSingle(v, 'createStyle')}
+                                      className="text-xs px-2 py-1 rounded bg-green-100 text-green-700 hover:bg-green-200"
+                                      title={`Create new style: ${v.suggestedCreateData}`}
+                                    >
+                                      Confirm create
+                                    </button>
+                                  )}
+                                  {v.fixable && !v.suggestedFixData && !v.suggestedCreateData && (
+                                    <button
+                                      onClick={() => handleFixSingle(v, action)}
+                                      className="text-xs px-2 py-1 rounded bg-blue-100 text-blue-700 hover:bg-blue-200"
+                                    >
+                                      {fixActionButtonLabel(action)}
+                                    </button>
+                                  )}
+                                </div>
                               </div>
                             </div>
-                          </div>
-                        ))}
+                          );
+                        })}
                         {remaining > 0 && (
                           <button
                             onClick={() =>

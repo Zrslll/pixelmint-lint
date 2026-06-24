@@ -1,4 +1,4 @@
-import { Violation } from '../types';
+import { FixAction, FixResult, Violation } from '../types';
 
 // ============================================================
 // Auto-fix logic (runs in Figma plugin sandbox)
@@ -65,11 +65,180 @@ export async function applyFix(violation: Violation): Promise<boolean> {
   }
 }
 
+type FixOptions = {
+  action?: FixAction;
+  confirmed?: boolean;
+};
+
+const COMPONENT_FIX_ALLOWLIST = new Set(['noComponentDescription']);
+const REQUIRED_FIX_DATA_RULES = new Set([
+  'missingFillStyle',
+  'colorNotInPalette',
+  'missingStrokeStyle',
+  'missingTextStyle',
+  'missingEffectStyle',
+  'defaultFrameName',
+  'defaultLayerName',
+  'componentNaming',
+  'noComponentDescription',
+  'missingExportSettings',
+  'nonStandardIconSize',
+]);
+
+function emptyFixResult(): FixResult {
+  return {
+    fixedViolations: [],
+    failedFixes: [],
+    pendingConfirmationFixes: [],
+    fixedCount: 0,
+    failedCount: 0,
+    pendingConfirmationCount: 0,
+  };
+}
+
+function baseFixAction(violation: Violation): FixAction {
+  if (violation.suggestedFixData?.startsWith('new:')) return 'createStyle';
+  if (!violation.suggestedFixData && violation.suggestedCreateData) return 'createStyle';
+
+  switch (violation.ruleId) {
+    case 'hiddenLayers':
+    case 'emptyContainers':
+      return 'removeNode';
+    case 'singleChildFrame':
+      return 'unwrapFrame';
+    case 'groupInsteadOfFrame':
+      return 'convertGroup';
+    case 'zeroOpacity':
+      return 'changeVisibility';
+    default:
+      return 'default';
+  }
+}
+
+function inferFixAction(violation: Violation, requestedAction?: FixAction): FixAction {
+  const baseAction = baseFixAction(violation);
+  if (isRiskyAction(baseAction)) return baseAction;
+  if (requestedAction) return requestedAction;
+  return baseAction;
+}
+
+function isRiskyAction(action: FixAction): boolean {
+  return (
+    action === 'createStyle' ||
+    action === 'removeNode' ||
+    action === 'unwrapFrame' ||
+    action === 'convertGroup' ||
+    action === 'changeVisibility'
+  );
+}
+
+function reasonForFalse(violation: Violation): string {
+  switch (violation.ruleId) {
+    case 'autoLineHeight':
+    case 'fixedSizeText':
+    case 'textResizeFixed':
+    case 'textOverflow':
+      return 'Could not load the text font or text node is unsupported';
+    case 'groupInsteadOfFrame':
+      return 'Group could not be converted safely';
+    case 'singleChildFrame':
+      return 'Frame could not be unwrapped safely';
+    case 'missingExportSettings':
+      return 'Node does not support export settings';
+    case 'nonStandardIconSize':
+      return 'Node cannot be resized to the suggested icon size';
+    default:
+      return 'Could not apply fix to this node';
+  }
+}
+
+function withCreateStyleData(violation: Violation): Violation {
+  if (!violation.suggestedCreateData) return violation;
+  return {
+    ...violation,
+    suggestedFixData: `new:${violation.suggestedCreateData}`,
+  };
+}
+
+export async function applyFixWithReason(
+  violation: Violation,
+  options: FixOptions = {}
+): Promise<{
+  status: 'fixed' | 'failed' | 'pendingConfirmation';
+  violation: Violation;
+  action: FixAction;
+  reason?: string;
+}> {
+  const action = inferFixAction(violation, options.action);
+
+  if (!violation.fixable) {
+    return { status: 'failed', violation, action, reason: 'Rule is not auto-fixable' };
+  }
+
+  const node = figma.getNodeById(violation.nodeId);
+  if (!node || node.removed) {
+    return { status: 'failed', violation, action, reason: 'Node no longer exists' };
+  }
+
+  if (node.type === 'INSTANCE') {
+    return {
+      status: 'failed',
+      violation,
+      action,
+      reason: 'Instances must be fixed on the main component',
+    };
+  }
+
+  if (node.type === 'COMPONENT' && !COMPONENT_FIX_ALLOWLIST.has(violation.ruleId)) {
+    return {
+      status: 'failed',
+      violation,
+      action,
+      reason: 'Main component is protected for this fix',
+    };
+  }
+
+  if (isRiskyAction(action) && options.confirmed !== true) {
+    return {
+      status: 'pendingConfirmation',
+      violation,
+      action,
+      reason:
+        action === 'createStyle'
+          ? 'Requires explicit confirmation to create style'
+          : 'Requires explicit confirmation',
+    };
+  }
+
+  if (action === 'createStyle' && !violation.suggestedCreateData) {
+    return { status: 'failed', violation, action, reason: 'Missing create style data' };
+  }
+
+  const fixViolation = action === 'createStyle' ? withCreateStyleData(violation) : violation;
+
+  if (REQUIRED_FIX_DATA_RULES.has(fixViolation.ruleId) && !fixViolation.suggestedFixData) {
+    return { status: 'failed', violation, action, reason: 'Missing fix data' };
+  }
+
+  try {
+    const success = await applyFix(fixViolation);
+    if (success) return { status: 'fixed', violation, action };
+    return { status: 'failed', violation, action, reason: reasonForFalse(violation) };
+  } catch (e) {
+    return {
+      status: 'failed',
+      violation,
+      action,
+      reason: e instanceof Error && e.message ? e.message : 'Fix failed with an exception',
+    };
+  }
+}
+
 export async function applyFixes(
   violations: Violation[],
   filterSeverity?: 'critical' | 'warnings'
-): Promise<number> {
-  let fixed = 0;
+): Promise<FixResult> {
+  const result = emptyFixResult();
   const toFix = violations.filter((v) => {
     if (!v.fixable) return false;
     if (filterSeverity === 'critical') return v.severity === 'critical';
@@ -78,10 +247,27 @@ export async function applyFixes(
   });
 
   for (const v of toFix) {
-    const success = await applyFix(v);
-    if (success) fixed++;
+    const fix = await applyFixWithReason(v);
+    if (fix.status === 'fixed') {
+      result.fixedViolations.push(fix.violation);
+    } else if (fix.status === 'pendingConfirmation') {
+      result.pendingConfirmationFixes.push({
+        violation: fix.violation,
+        action: fix.action,
+        reason: fix.reason || 'Requires explicit confirmation',
+      });
+    } else {
+      result.failedFixes.push({
+        violation: fix.violation,
+        action: fix.action,
+        reason: fix.reason || 'Could not apply fix',
+      });
+    }
   }
-  return fixed;
+  result.fixedCount = result.fixedViolations.length;
+  result.failedCount = result.failedFixes.length;
+  result.pendingConfirmationCount = result.pendingConfirmationFixes.length;
+  return result;
 }
 
 function fixFractionalCoords(node: SceneNode): boolean {

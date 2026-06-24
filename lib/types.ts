@@ -23,6 +23,30 @@ export interface Violation {
   isInstance?: boolean;
 }
 
+export type FixAction =
+  | 'default'
+  | 'applyExistingStyle'
+  | 'createStyle'
+  | 'removeNode'
+  | 'unwrapFrame'
+  | 'convertGroup'
+  | 'changeVisibility';
+
+export interface FixFailure {
+  violation: Violation;
+  action: FixAction;
+  reason: string;
+}
+
+export interface FixResult {
+  fixedViolations: Violation[];
+  failedFixes: FixFailure[];
+  pendingConfirmationFixes: FixFailure[];
+  fixedCount: number;
+  failedCount: number;
+  pendingConfirmationCount: number;
+}
+
 export interface RuleInfo {
   id: string;
   name: string;
@@ -58,7 +82,7 @@ export type PluginMessage =
       fixType: 'all' | 'critical' | 'warnings';
       violations: Violation[];
     }
-  | { type: 'LINT_FIX_SINGLE'; violation: Violation }
+  | { type: 'LINT_FIX_SINGLE'; violation: Violation; fixAction?: FixAction; confirmed?: boolean }
   | { type: 'LINT_NAVIGATE'; nodeId: string }
   | { type: 'SETTINGS_LOAD' }
   | { type: 'SETTINGS_SAVE'; settings: LintSettings };
@@ -73,7 +97,7 @@ export type UIMessage =
     }
   | { type: 'LINT_RESULT'; result: LintResult; ruleInfos: RuleInfo[] }
   | { type: 'LINT_ERROR'; error: string }
-  | { type: 'LINT_FIX_DONE'; fixedCount: number }
+  | ({ type: 'LINT_FIX_DONE' } & FixResult)
   | { type: 'SETTINGS_DATA'; settings: LintSettings; ruleInfos: RuleInfo[] }
   | { type: 'SELECTION_EMPTY' };
 

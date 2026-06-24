@@ -1,6 +1,6 @@
 import { collectStyles } from '../lib/linter/collectStyles';
 import { runLint, getRuleInfos } from '../lib/linter/engine';
-import { applyFix, applyFixes } from '../lib/linter/fixes';
+import { applyFixes, applyFixWithReason } from '../lib/linter/fixes';
 import { PluginMessage, UIMessage, LintSettings, DEFAULT_SETTINGS } from '../lib/types';
 
 // ============================================================
@@ -66,30 +66,58 @@ async function handleLintFix(message: Extract<PluginMessage, { type: 'LINT_FIX' 
     critical: 'critical',
     warnings: 'warnings',
   };
-  let fixedCount = 0;
   try {
-    fixedCount = await applyFixes(message.violations, filterMap[message.fixType]);
-  } catch {
-    // Partial fixes may have succeeded before the error
+    const result = await applyFixes(message.violations, filterMap[message.fixType]);
+    send({ type: 'LINT_FIX_DONE', ...result });
+    const suffix =
+      result.failedCount > 0 || result.pendingConfirmationCount > 0
+        ? `, ${result.failedCount} failed, ${result.pendingConfirmationCount} need confirmation`
+        : '';
+    figma.notify(`Fixed ${result.fixedCount} issue${result.fixedCount !== 1 ? 's' : ''}${suffix}`);
+  } catch (e: any) {
+    send({ type: 'LINT_ERROR', error: e?.message || 'Could not apply fixes' });
   }
-  send({ type: 'LINT_FIX_DONE', fixedCount });
-  figma.notify(`Fixed ${fixedCount} issue${fixedCount !== 1 ? 's' : ''}`);
 }
 
 async function handleLintFixSingle(message: Extract<PluginMessage, { type: 'LINT_FIX_SINGLE' }>) {
-  let success = false;
-  try {
-    success = await applyFix(message.violation);
-  } catch {
-    // If exception but node was removed/changed, treat as partial success
-    const node = figma.getNodeById(message.violation.nodeId);
-    success = !node || node.removed;
-  }
-  send({ type: 'LINT_FIX_DONE', fixedCount: success ? 1 : 0 });
-  if (success) {
+  const fix = await applyFixWithReason(message.violation, {
+    action: message.fixAction,
+    confirmed: message.confirmed,
+  });
+  const result = {
+    fixedViolations: fix.status === 'fixed' ? [fix.violation] : [],
+    failedFixes:
+      fix.status === 'failed'
+        ? [
+            {
+              violation: fix.violation,
+              action: fix.action,
+              reason: fix.reason || 'Could not apply fix',
+            },
+          ]
+        : [],
+    pendingConfirmationFixes:
+      fix.status === 'pendingConfirmation'
+        ? [
+            {
+              violation: fix.violation,
+              action: fix.action,
+              reason: fix.reason || 'Requires explicit confirmation',
+            },
+          ]
+        : [],
+    fixedCount: fix.status === 'fixed' ? 1 : 0,
+    failedCount: fix.status === 'failed' ? 1 : 0,
+    pendingConfirmationCount: fix.status === 'pendingConfirmation' ? 1 : 0,
+  };
+
+  send({ type: 'LINT_FIX_DONE', ...result });
+  if (fix.status === 'fixed') {
     figma.notify('Fixed!');
+  } else if (fix.status === 'pendingConfirmation') {
+    figma.notify(fix.reason || 'Requires explicit confirmation', { error: true });
   } else {
-    figma.notify('Could not fix this issue', { error: true });
+    figma.notify(`Could not fix: ${fix.reason || 'Unknown reason'}`, { error: true });
   }
 }
 
