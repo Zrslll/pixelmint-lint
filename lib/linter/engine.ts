@@ -18,7 +18,7 @@ export interface LintRule {
   category: Category;
   severity: Severity;
   defaultEnabled: boolean;
-  run(nodes: SceneNode[], context: LintContext): Violation[];
+  run(nodes: SceneNode[], context: LintContext): Violation[] | Promise<Violation[]>;
 }
 
 // All rules combined
@@ -60,7 +60,8 @@ export function calculateScore(violations: Violation[]): number {
         break;
     }
   }
-  const warningPenalty = Math.min(warnings * 2, 30) + (warnings > 15 ? Math.log2(warnings - 14) * 2 : 0);
+  const warningPenalty =
+    Math.min(warnings * 2, 30) + (warnings > 15 ? Math.log2(warnings - 14) * 2 : 0);
   const infoPenalty = Math.min(infos * 0.5, 10) + (infos > 20 ? Math.log2(infos - 19) * 0.5 : 0);
   const deductions = criticals * 5 + warningPenalty + infoPenalty;
   return Math.max(0, Math.round(100 - deductions));
@@ -88,7 +89,12 @@ export async function runLint(
   const nodes = flattenNodes(selection);
   const violations: Violation[] = [];
 
-  const enabledRules = ALL_RULES.filter((r) => !context.settings.disabledRules.includes(r.id));
+  const enabledRules = ALL_RULES.filter((r) => {
+    if (!r.defaultEnabled) {
+      return Boolean(context.settings.enabledRules?.includes(r.id));
+    }
+    return !context.settings.disabledRules.includes(r.id);
+  });
   const total = enabledRules.length;
 
   for (let i = 0; i < enabledRules.length; i++) {
@@ -105,7 +111,7 @@ export async function runLint(
     if (signal?.aborted) break;
 
     try {
-      const ruleViolations = rule.run(nodes, context);
+      const ruleViolations = await rule.run(nodes, context);
       violations.push(...ruleViolations);
     } catch (e) {
       // #27 — Report failed rules as info-level violations
@@ -121,7 +127,9 @@ export async function runLint(
     }
   }
 
-  // Post-process: protect Main Components and Instances from fixes
+  // Post-process: protect Main Components and Instances from unsafe fixes.
+  // Rule-specific component fixes are allowed explicitly.
+  const protectedFixRules = new Set(['noComponentDescription']);
   const nodeTypeMap = new Map<string, string>();
   for (const n of nodes) nodeTypeMap.set(n.id, n.type);
 
@@ -129,9 +137,11 @@ export async function runLint(
     if (!v.nodeId) continue;
     const nodeType = nodeTypeMap.get(v.nodeId);
     if (nodeType === 'COMPONENT') {
-      v.fixable = false;
-      v.suggestedFixData = undefined;
-      v.suggestedCreateData = undefined;
+      if (!protectedFixRules.has(v.ruleId)) {
+        v.fixable = false;
+        v.suggestedFixData = undefined;
+        v.suggestedCreateData = undefined;
+      }
       v.isMainComponent = true;
     } else if (nodeType === 'INSTANCE') {
       v.fixable = false;

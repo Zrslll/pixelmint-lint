@@ -98,7 +98,7 @@ const deepNesting: LintRule = {
   description: 'Excessive nesting makes designs hard to maintain',
   category: 'cleanup',
   severity: 'info',
-  defaultEnabled: true,
+  defaultEnabled: false,
   run(nodes, context) {
     const limit = context.settings.nestingDepthLimit;
     const violations: Violation[] = [];
@@ -186,30 +186,36 @@ const childOverflow: LintRule = {
 };
 
 // #27 — Stroke icons (vectors with stroke, no fill)
+function hasVisiblePaint(paints: readonly Paint[] | PluginAPI['mixed']): boolean {
+  return (
+    paints !== figma.mixed &&
+    Array.isArray(paints) &&
+    paints.length > 0 &&
+    paints.some((paint: Paint) => paint.visible !== false)
+  );
+}
+
 const strokeIcons: LintRule = {
   id: 'strokeIcons',
   name: 'Stroke-based icons',
   description: 'Icons with strokes may not export cleanly — outline strokes',
   category: 'cleanup',
   severity: 'info',
-  defaultEnabled: true,
+  defaultEnabled: false,
   run(nodes) {
     const violations: Violation[] = [];
     for (const node of nodes) {
-      if (node.type !== 'VECTOR') continue;
-      const vec = node as VectorNode;
-      // Small vector with strokes but no solid fills = likely icon
-      if (vec.width > 48 || vec.height > 48) continue;
+      if (!('strokes' in node) || !('fills' in node)) continue;
+      if (node.width > 48 || node.height > 48) continue;
 
-      const hasStroke = vec.strokes.length > 0 && vec.strokes.some((s) => s.visible !== false);
-      const fills = vec.fills;
-      const hasFill =
-        fills !== figma.mixed &&
-        Array.isArray(fills) &&
-        fills.length > 0 &&
-        fills.some((f: Paint) => f.visible !== false);
+      const vectorLike =
+        node.type === 'VECTOR' ||
+        node.type === 'LINE' ||
+        node.type === 'BOOLEAN_OPERATION' ||
+        /icon/i.test(node.name);
+      if (!vectorLike) continue;
 
-      if (hasStroke && !hasFill) {
+      if (hasVisiblePaint(node.strokes) && !hasVisiblePaint(node.fills)) {
         violations.push({
           ruleId: 'strokeIcons',
           nodeId: node.id,
@@ -288,11 +294,7 @@ const imageWithoutFill: LintRule = {
   run(nodes) {
     const violations: Violation[] = [];
     for (const node of nodes) {
-      if (
-        node.type !== 'RECTANGLE' &&
-        node.type !== 'ELLIPSE' &&
-        node.type !== 'FRAME'
-      ) continue;
+      if (node.type !== 'RECTANGLE' && node.type !== 'ELLIPSE' && node.type !== 'FRAME') continue;
       if (!IMAGE_NAME_RE.test(node.name)) continue;
       if (!('fills' in node)) continue;
 
@@ -337,17 +339,16 @@ const singleChildFrame: LintRule = {
 
       // Skip if has visible fills, strokes, or effects
       const fills = frame.fills;
-      const hasFills = fills !== figma.mixed &&
+      const hasFills =
+        fills !== figma.mixed &&
         Array.isArray(fills) &&
         fills.some((f: Paint) => f.visible !== false);
       if (hasFills) continue;
 
-      const hasStrokes = frame.strokes.length > 0 &&
-        frame.strokes.some((s) => s.visible !== false);
+      const hasStrokes = frame.strokes.length > 0 && frame.strokes.some((s) => s.visible !== false);
       if (hasStrokes) continue;
 
-      const hasEffects = frame.effects.length > 0 &&
-        frame.effects.some((e) => e.visible !== false);
+      const hasEffects = frame.effects.length > 0 && frame.effects.some((e) => e.visible !== false);
       if (hasEffects) continue;
 
       violations.push({
@@ -365,39 +366,38 @@ const singleChildFrame: LintRule = {
   },
 };
 
-// #40 — Unused component (no instances in selection)
-const unusedComponent: LintRule = {
-  id: 'unusedComponent',
-  name: 'Unused component',
-  description: 'Component has no instances in current selection',
+// #40 — Instance whose main component was deleted or is unavailable
+const deletedComponentInstance: LintRule = {
+  id: 'deletedComponentInstance',
+  name: 'Instance with deleted component',
+  description: 'Instance points to a deleted or unavailable main component',
   category: 'cleanup',
   severity: 'info',
   defaultEnabled: false,
-  run(nodes) {
+  async run(nodes) {
     const violations: Violation[] = [];
 
-    // Collect all used component IDs from instances
-    const usedComponentIds = new Set<string>();
     for (const node of nodes) {
       if (node.type !== 'INSTANCE') continue;
       const inst = node as InstanceNode;
-      if (inst.mainComponent) {
-        usedComponentIds.add(inst.mainComponent.id);
+      let mainComponent: ComponentNode | null = null;
+      try {
+        mainComponent = await inst.getMainComponentAsync();
+      } catch {
+        try {
+          mainComponent = inst.mainComponent;
+        } catch {
+          mainComponent = null;
+        }
       }
-    }
-
-    for (const node of nodes) {
-      if (node.type !== 'COMPONENT') continue;
-      // Exclude variants inside COMPONENT_SET
-      if (node.parent && node.parent.type === 'COMPONENT_SET') continue;
-      if (usedComponentIds.has(node.id)) continue;
+      if (mainComponent) continue;
 
       violations.push({
-        ruleId: 'unusedComponent',
+        ruleId: 'deletedComponentInstance',
         nodeId: node.id,
         nodeName: node.name,
         severity: 'info',
-        message: 'Component has no instances in current selection',
+        message: 'Instance main component is deleted or unavailable',
         fixable: false,
         category: 'cleanup',
       });
@@ -416,5 +416,5 @@ export const cleanupRules: LintRule[] = [
   noComponentDescription,
   imageWithoutFill,
   singleChildFrame,
-  unusedComponent,
+  deletedComponentInstance,
 ];

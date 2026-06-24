@@ -40,13 +40,23 @@ function SeverityIcon({ severity }: { severity: Severity }) {
     return (
       <svg width="14" height="14" viewBox="0 0 16 16" fill="none" className={cls}>
         <circle cx="8" cy="8" r="7" stroke="currentColor" strokeWidth="1.5" />
-        <path d="M5.5 5.5l5 5M10.5 5.5l-5 5" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+        <path
+          d="M5.5 5.5l5 5M10.5 5.5l-5 5"
+          stroke="currentColor"
+          strokeWidth="1.5"
+          strokeLinecap="round"
+        />
       </svg>
     );
   if (severity === 'warning')
     return (
       <svg width="14" height="14" viewBox="0 0 16 16" fill="none" className={cls}>
-        <path d="M8 1.5l7 13H1l7-13z" stroke="currentColor" strokeWidth="1.5" strokeLinejoin="round" />
+        <path
+          d="M8 1.5l7 13H1l7-13z"
+          stroke="currentColor"
+          strokeWidth="1.5"
+          strokeLinejoin="round"
+        />
         <path d="M8 6.5v3" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
         <circle cx="8" cy="12" r="0.75" fill="currentColor" />
       </svg>
@@ -116,7 +126,9 @@ export default function Plugin() {
   const [reportTab, setReportTab] = useState<'issues' | 'completed'>('issues');
   const [collapsedCats, setCollapsedCats] = useState<Set<string>>(new Set());
   const [showLimit, setShowLimit] = useState<Record<string, number>>({});
-  const pendingFixRef = useRef<{ type: 'single'; violation: Violation } | { type: 'bulk'; violations: Violation[] } | null>(null);
+  const pendingFixRef = useRef<
+    { type: 'single'; violation: Violation } | { type: 'bulk'; violations: Violation[] } | null
+  >(null);
 
   const toggleCat = useCallback((cat: string) => {
     setCollapsedCats((prev) => {
@@ -166,7 +178,11 @@ export default function Plugin() {
                 return {
                   ...prev,
                   violations: prev.violations.filter(
-                    (v) => !(v.nodeId === pending.violation.nodeId && v.ruleId === pending.violation.ruleId)
+                    (v) =>
+                      !(
+                        v.nodeId === pending.violation.nodeId &&
+                        v.ruleId === pending.violation.ruleId
+                      )
                   ),
                 };
               });
@@ -246,13 +262,10 @@ export default function Plugin() {
     [result]
   );
 
-  const handleFixSingle = useCallback(
-    (violation: Violation) => {
-      pendingFixRef.current = { type: 'single', violation };
-      sendToPlugin({ type: 'LINT_FIX_SINGLE', violation });
-    },
-    []
-  );
+  const handleFixSingle = useCallback((violation: Violation) => {
+    pendingFixRef.current = { type: 'single', violation };
+    sendToPlugin({ type: 'LINT_FIX_SINGLE', violation });
+  }, []);
 
   const handleSaveSettings = useCallback((newSettings: LintSettings) => {
     setSettings(newSettings);
@@ -333,9 +346,7 @@ export default function Plugin() {
             <p className="text-xs text-gray-500 text-center mb-1">
               {progress.current}/{progress.total}
             </p>
-            <p className="text-xs text-gray-500 text-center mb-3">
-              {progress.ruleName}
-            </p>
+            <p className="text-xs text-gray-500 text-center mb-3">{progress.ruleName}</p>
             <button
               onClick={handleCancel}
               className="block mx-auto text-xs text-red-700 hover:text-red-800"
@@ -403,8 +414,13 @@ export default function Plugin() {
           </div>
 
           {/* Score */}
-          <div className={`flex items-center justify-between gap-3 p-2 rounded-lg border ${scoreBg(score)}`}>
-            <span className="text-3xl font-bold"><span className={scoreColor(score)}>{score}</span><span className="font-normal text-gray-400">/100</span></span>
+          <div
+            className={`flex items-center justify-between gap-3 p-2 rounded-lg border ${scoreBg(score)}`}
+          >
+            <span className="text-3xl font-bold">
+              <span className={scoreColor(score)}>{score}</span>
+              <span className="font-normal text-gray-400">/100</span>
+            </span>
             <div className="flex-1 flex gap-2 text-xs">
               {criticalCount > 0 && (
                 <span className="text-red-700 font-medium">{criticalCount} critical</span>
@@ -419,11 +435,20 @@ export default function Plugin() {
               className="shrink-0 p-1.5 rounded bg-blue-50 text-blue-700 border border-blue-200 hover:bg-blue-100 transition-colors flex items-center justify-center"
               title="Re-lint selection"
             >
-              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M21 2v6h-6"/>
-                <path d="M3 12a9 9 0 0 1 15-6.7L21 8"/>
-                <path d="M3 22v-6h6"/>
-                <path d="M21 12a9 9 0 0 1-15 6.7L3 16"/>
+              <svg
+                width="11"
+                height="11"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2.5"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+              >
+                <path d="M21 2v6h-6" />
+                <path d="M3 12a9 9 0 0 1 15-6.7L21 8" />
+                <path d="M3 22v-6h6" />
+                <path d="M21 12a9 9 0 0 1-15 6.7L3 16" />
               </svg>
             </button>
           </div>
@@ -487,119 +512,129 @@ export default function Plugin() {
                 const visible = collapsed ? [] : items.slice(0, limit);
                 const remaining = items.length - limit;
                 return (
-                <div key={cat} className="mb-3">
-                  <button
-                    onClick={() => toggleCat(cat)}
-                    className="flex items-center gap-1 w-full text-left mb-1 group"
-                  >
-                    <span className="text-xs text-gray-500 transition-transform" style={{ transform: collapsed ? 'rotate(-90deg)' : '' }}>&#9660;</span>
-                    <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wide group-hover:text-gray-700">
-                      {CATEGORY_LABELS[cat as Category] || cat} ({items.length})
-                    </h3>
-                  </button>
-                  {!collapsed && (
-                  <div className="space-y-1">
-                    {visible.map((v, i) => (
-                      <div
-                        key={`${v.nodeId}-${v.ruleId}-${i}`}
-                        className={`p-2 rounded border ${SEVERITY_BG[v.severity]}`}
+                  <div key={cat} className="mb-3">
+                    <button
+                      onClick={() => toggleCat(cat)}
+                      className="flex items-center gap-1 w-full text-left mb-1 group"
+                    >
+                      <span
+                        className="text-xs text-gray-500 transition-transform"
+                        style={{ transform: collapsed ? 'rotate(-90deg)' : '' }}
                       >
-                        <div className="flex items-start gap-2">
-                          <SeverityIcon severity={v.severity} />
-                          <div className="flex-1 min-w-0">
-                            <div className="flex items-center gap-1">
-                              {v.nodeId ? (
-                                <button
-                                  onClick={() => handleNavigate(v.nodeId)}
-                                  className="text-xs font-medium text-blue-600 hover:underline max-w-full text-left"
-                                  title="Click to zoom to element"
-                                >
-                                  {v.nodeName || v.ruleId}
-                                </button>
-                              ) : (
-                                <span className="text-xs font-medium text-gray-600">
-                                  {v.nodeName || 'File-level'}
-                                </span>
-                              )}
-                              {v.isMainComponent && (
-                                <span className="text-xs px-1 py-1 rounded bg-purple-100 text-purple-600 shrink-0">
-                                  Main Component
-                                </span>
-                              )}
-                              {v.isInstance && (
-                                <span className="text-xs px-1 py-1 rounded bg-orange-100 text-orange-600 shrink-0">
-                                  Edit master component
-                                </span>
-                              )}
-                            </div>
-                            <p className="text-xs text-gray-600 mt-1">
-                              {v.message}
-                              {v.ruleId === 'hiddenLayers' && (
-                                <span className="text-xs text-red-700 font-medium">
-                                  {' '}&mdash; layer will be removed
-                                </span>
-                              )}
-                            </p>
-                            {(v.current || v.expected) && v.ruleId !== 'hiddenLayers' && (
-                              <div className="flex flex-wrap gap-1 mt-1 text-xs min-w-0">
-                                {v.current && (
-                                  <span className="text-red-700 bg-red-50 px-1 rounded break-all min-w-0">
-                                    {v.current}
-                                  </span>
-                                )}
-                                {v.expected && (
-                                  <span className="text-green-700 bg-green-50 px-1 rounded break-all min-w-0">
-                                    {v.expected}
-                                  </span>
+                        &#9660;
+                      </span>
+                      <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wide group-hover:text-gray-700">
+                        {CATEGORY_LABELS[cat as Category] || cat} ({items.length})
+                      </h3>
+                    </button>
+                    {!collapsed && (
+                      <div className="space-y-1">
+                        {visible.map((v, i) => (
+                          <div
+                            key={`${v.nodeId}-${v.ruleId}-${i}`}
+                            className={`p-2 rounded border ${SEVERITY_BG[v.severity]}`}
+                          >
+                            <div className="flex items-start gap-2">
+                              <SeverityIcon severity={v.severity} />
+                              <div className="flex-1 min-w-0">
+                                <div className="flex items-center gap-1">
+                                  {v.nodeId ? (
+                                    <button
+                                      onClick={() => handleNavigate(v.nodeId)}
+                                      className="text-xs font-medium text-blue-600 hover:underline max-w-full text-left"
+                                      title="Click to zoom to element"
+                                    >
+                                      {v.nodeName || v.ruleId}
+                                    </button>
+                                  ) : (
+                                    <span className="text-xs font-medium text-gray-600">
+                                      {v.nodeName || 'File-level'}
+                                    </span>
+                                  )}
+                                  {v.isMainComponent && (
+                                    <span className="text-xs px-1 py-1 rounded bg-purple-100 text-purple-600 shrink-0">
+                                      Main Component
+                                    </span>
+                                  )}
+                                  {v.isInstance && (
+                                    <span className="text-xs px-1 py-1 rounded bg-orange-100 text-orange-600 shrink-0">
+                                      Edit master component
+                                    </span>
+                                  )}
+                                </div>
+                                <p className="text-xs text-gray-600 mt-1">
+                                  {v.message}
+                                  {v.ruleId === 'hiddenLayers' && (
+                                    <span className="text-xs text-red-700 font-medium">
+                                      {' '}
+                                      &mdash; layer will be removed
+                                    </span>
+                                  )}
+                                </p>
+                                {(v.current || v.expected) && v.ruleId !== 'hiddenLayers' && (
+                                  <div className="flex flex-wrap gap-1 mt-1 text-xs min-w-0">
+                                    {v.current && (
+                                      <span className="text-red-700 bg-red-50 px-1 rounded break-all min-w-0">
+                                        {v.current}
+                                      </span>
+                                    )}
+                                    {v.expected && (
+                                      <span className="text-green-700 bg-green-50 px-1 rounded break-all min-w-0">
+                                        {v.expected}
+                                      </span>
+                                    )}
+                                  </div>
                                 )}
                               </div>
-                            )}
+                              <div className="flex gap-1 shrink-0">
+                                {v.suggestedFixData && (
+                                  <button
+                                    onClick={() => handleFixSingle(v)}
+                                    className="text-xs px-2 py-1 rounded bg-blue-100 text-blue-700 hover:bg-blue-200"
+                                    title={`Apply style: ${v.expected || ''}`}
+                                  >
+                                    Apply
+                                  </button>
+                                )}
+                                {v.suggestedCreateData && (
+                                  <button
+                                    onClick={() =>
+                                      handleFixSingle({
+                                        ...v,
+                                        suggestedFixData: 'new:' + v.suggestedCreateData,
+                                      })
+                                    }
+                                    className="text-xs px-2 py-1 rounded bg-green-100 text-green-700 hover:bg-green-200"
+                                    title={`Create new style: ${v.suggestedCreateData}`}
+                                  >
+                                    New
+                                  </button>
+                                )}
+                                {v.fixable && !v.suggestedFixData && !v.suggestedCreateData && (
+                                  <button
+                                    onClick={() => handleFixSingle(v)}
+                                    className="text-xs px-2 py-1 rounded bg-blue-100 text-blue-700 hover:bg-blue-200"
+                                  >
+                                    Fix
+                                  </button>
+                                )}
+                              </div>
+                            </div>
                           </div>
-                          <div className="flex gap-1 shrink-0">
-                            {v.suggestedFixData && (
-                              <button
-                                onClick={() => handleFixSingle(v)}
-                                className="text-xs px-2 py-1 rounded bg-blue-100 text-blue-700 hover:bg-blue-200"
-                                title={`Apply style: ${v.expected || ''}`}
-                              >
-                                Apply
-                              </button>
-                            )}
-                            {v.suggestedCreateData && (
-                              <button
-                                onClick={() => handleFixSingle({
-                                  ...v,
-                                  suggestedFixData: 'new:' + v.suggestedCreateData,
-                                })}
-                                className="text-xs px-2 py-1 rounded bg-green-100 text-green-700 hover:bg-green-200"
-                                title={`Create new style: ${v.suggestedCreateData}`}
-                              >
-                                New
-                              </button>
-                            )}
-                            {v.fixable && !v.suggestedFixData && !v.suggestedCreateData && (
-                              <button
-                                onClick={() => handleFixSingle(v)}
-                                className="text-xs px-2 py-1 rounded bg-blue-100 text-blue-700 hover:bg-blue-200"
-                              >
-                                Fix
-                              </button>
-                            )}
-                          </div>
-                        </div>
+                        ))}
+                        {remaining > 0 && (
+                          <button
+                            onClick={() =>
+                              setShowLimit((prev) => ({ ...prev, [cat]: limit + ITEMS_PER_PAGE }))
+                            }
+                            className="w-full py-2 text-xs text-blue-600 hover:text-blue-700 hover:bg-blue-50 rounded transition-colors"
+                          >
+                            Show {Math.min(remaining, ITEMS_PER_PAGE)} more ({remaining} remaining)
+                          </button>
+                        )}
                       </div>
-                    ))}
-                    {remaining > 0 && (
-                      <button
-                        onClick={() => setShowLimit((prev) => ({ ...prev, [cat]: limit + ITEMS_PER_PAGE }))}
-                        className="w-full py-2 text-xs text-blue-600 hover:text-blue-700 hover:bg-blue-50 rounded transition-colors"
-                      >
-                        Show {Math.min(remaining, ITEMS_PER_PAGE)} more ({remaining} remaining)
-                      </button>
                     )}
                   </div>
-                  )}
-                </div>
                 );
               })
             )
@@ -625,17 +660,27 @@ export default function Plugin() {
                       className="p-2 rounded border bg-green-50 border-green-200"
                     >
                       <div className="flex items-start gap-2">
-                        <svg width="14" height="14" viewBox="0 0 16 16" fill="none" className="shrink-0 text-green-500">
+                        <svg
+                          width="14"
+                          height="14"
+                          viewBox="0 0 16 16"
+                          fill="none"
+                          className="shrink-0 text-green-500"
+                        >
                           <circle cx="8" cy="8" r="7" stroke="currentColor" strokeWidth="1.5" />
-                          <path d="M5 8l2 2 4-4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                          <path
+                            d="M5 8l2 2 4-4"
+                            stroke="currentColor"
+                            strokeWidth="1.5"
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                          />
                         </svg>
                         <div className="flex-1 min-w-0">
                           <span className="text-xs font-medium text-gray-600 block">
                             {v.nodeName}
                           </span>
-                          <p className="text-xs text-gray-600 mt-1 line-through">
-                            {v.message}
-                          </p>
+                          <p className="text-xs text-gray-600 mt-1 line-through">{v.message}</p>
                         </div>
                       </div>
                     </div>
@@ -658,12 +703,28 @@ export default function Plugin() {
       return acc;
     }, {});
 
-    const toggleRule = (ruleId: string) => {
-      const disabled = settings.disabledRules.includes(ruleId);
-      const newDisabled = disabled
-        ? settings.disabledRules.filter((id) => id !== ruleId)
-        : [...settings.disabledRules, ruleId];
-      handleSaveSettings({ ...settings, disabledRules: newDisabled });
+    const isRuleEnabled = (rule: RuleInfo) => {
+      if (rule.defaultEnabled) {
+        return !settings.disabledRules.includes(rule.id);
+      }
+      return Boolean(settings.enabledRules?.includes(rule.id));
+    };
+
+    const toggleRule = (rule: RuleInfo) => {
+      const enabled = isRuleEnabled(rule);
+      if (rule.defaultEnabled) {
+        const disabledRules = enabled
+          ? [...settings.disabledRules, rule.id]
+          : settings.disabledRules.filter((id) => id !== rule.id);
+        handleSaveSettings({ ...settings, disabledRules });
+        return;
+      }
+
+      const enabledRules = enabled
+        ? (settings.enabledRules || []).filter((id) => id !== rule.id)
+        : [...(settings.enabledRules || []), rule.id];
+      const disabledRules = settings.disabledRules.filter((id) => id !== rule.id);
+      handleSaveSettings({ ...settings, disabledRules, enabledRules });
     };
 
     return (
@@ -776,9 +837,7 @@ export default function Plugin() {
           {/* Rules */}
           <div>
             <div className="flex items-center justify-between mb-2">
-              <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wide">
-                Rules
-              </h3>
+              <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Rules</h3>
               <button
                 onClick={() => handleSaveSettings({ ...DEFAULT_SETTINGS })}
                 className="text-xs text-blue-600 hover:text-blue-700"
@@ -793,7 +852,7 @@ export default function Plugin() {
                 </p>
                 <div className="space-y-2">
                   {rules.map((rule) => {
-                    const enabled = !settings.disabledRules.includes(rule.id);
+                    const enabled = isRuleEnabled(rule);
                     return (
                       <div key={rule.id} className="flex items-center justify-between py-1">
                         <div className="flex-1 min-w-0 mr-2 flex items-start gap-2">
@@ -803,7 +862,7 @@ export default function Plugin() {
                             <p className="text-xs text-gray-500">{rule.description}</p>
                           </div>
                         </div>
-                        <Toggle enabled={enabled} onToggle={() => toggleRule(rule.id)} />
+                        <Toggle enabled={enabled} onToggle={() => toggleRule(rule)} />
                       </div>
                     );
                   })}

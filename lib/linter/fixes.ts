@@ -7,7 +7,6 @@ import { Violation } from '../types';
 export async function applyFix(violation: Violation): Promise<boolean> {
   const node = figma.getNodeById(violation.nodeId);
   if (!node || node.removed) return false;
-  if (node.type === 'COMPONENT' || node.type === 'INSTANCE') return false;
 
   switch (violation.ruleId) {
     case 'fractionalCoords':
@@ -325,7 +324,9 @@ function fixAddExportSettings(node: SceneNode, format: string | undefined): bool
     if (format === 'svg') {
       exportable.exportSettings = [{ format: 'SVG', suffix: '' } as ExportSettingsSVG];
     } else {
-      exportable.exportSettings = [{ format: 'PNG', suffix: '@2x', constraint: { type: 'SCALE', value: 2 } }];
+      exportable.exportSettings = [
+        { format: 'PNG', suffix: '@2x', constraint: { type: 'SCALE', value: 2 } },
+      ];
     }
     return true;
   } catch {
@@ -341,6 +342,7 @@ function fixUnwrapSingleChild(node: FrameNode): boolean {
   if (!('insertChild' in parent)) return false;
 
   const index = parent.children.indexOf(node);
+  if (index < 0) return false;
   const child = node.children[0];
 
   // Cache coordinates before moving
@@ -352,7 +354,7 @@ function fixUnwrapSingleChild(node: FrameNode): boolean {
 
   try {
     (parent as FrameNode).insertChild(index, child);
-    // Only set coordinates if parent is NOT auto-layout (AL manages positioning)
+    // Only set coordinates if parent is NOT auto-layout (AL manages positioning).
     if ('x' in child && !parentIsAutoLayout) {
       (child as any).x = frameX + childRelX;
       (child as any).y = frameY + childRelY;

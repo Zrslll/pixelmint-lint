@@ -15,12 +15,22 @@ const detachedInstance: LintRule = {
   category: 'structure',
   severity: 'critical',
   defaultEnabled: true,
-  run(nodes) {
+  async run(nodes) {
     const violations: Violation[] = [];
     for (const node of nodes) {
       if (node.type !== 'INSTANCE') continue;
       const inst = node as InstanceNode;
-      if (!inst.mainComponent) {
+      let mainComponent: ComponentNode | null = null;
+      try {
+        mainComponent = await inst.getMainComponentAsync();
+      } catch {
+        try {
+          mainComponent = inst.mainComponent;
+        } catch {
+          mainComponent = null;
+        }
+      }
+      if (!mainComponent) {
         violations.push({
           ruleId: 'detachedInstance',
           nodeId: node.id,

@@ -144,7 +144,7 @@ const touchTargetSize: LintRule = {
   description: 'Interactive elements should meet minimum touch target size',
   category: 'a11y',
   severity: 'warning',
-  defaultEnabled: true,
+  defaultEnabled: false,
   run(nodes, context) {
     const minTarget = context.settings.touchTargetMin;
     if (!minTarget || minTarget <= 0) return [];

@@ -41,6 +41,7 @@ export interface LintResult {
 
 export interface LintSettings {
   disabledRules: string[];
+  enabledRules?: string[];
   spacingBase: number;
   nestingDepthLimit: number;
   iconSizes: number[];
@@ -78,6 +79,7 @@ export type UIMessage =
 
 export const DEFAULT_SETTINGS: LintSettings = {
   disabledRules: [],
+  enabledRules: [],
   spacingBase: 4,
   nestingDepthLimit: 5,
   iconSizes: [16, 20, 24, 32],
