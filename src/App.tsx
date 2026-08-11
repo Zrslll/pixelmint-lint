@@ -133,8 +133,6 @@ function defaultFixAction(v: Violation): FixAction {
       return 'unwrapFrame';
     case 'groupInsteadOfFrame':
       return 'convertGroup';
-    case 'zeroOpacity':
-      return 'changeVisibility';
     default:
       return 'default';
   }

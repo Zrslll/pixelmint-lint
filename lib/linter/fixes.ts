@@ -4,7 +4,23 @@ import { FixAction, FixResult, Violation } from '../types';
 // Auto-fix logic (runs in Figma plugin sandbox)
 // ============================================================
 
+const DISABLED_AUTOFIX_RULES = new Set([
+  'fractionalCoords',
+  'fractionalSize',
+  'groupInsteadOfFrame',
+  'singleChildFrame',
+  'nonStandardIconSize',
+  'fixedSizeText',
+  'textResizeFixed',
+  'textOverflow',
+  'autoLineHeight',
+  'lockedLayers',
+  'zeroOpacity',
+]);
+
 export async function applyFix(violation: Violation): Promise<boolean> {
+  if (DISABLED_AUTOFIX_RULES.has(violation.ruleId)) return false;
+
   const node = figma.getNodeById(violation.nodeId);
   if (!node || node.removed) return false;
 
@@ -16,7 +32,7 @@ export async function applyFix(violation: Violation): Promise<boolean> {
     case 'hiddenLayers':
       return fixRemoveHiddenLayer(node as SceneNode);
     case 'zeroOpacity':
-      return fixZeroOpacity(node as SceneNode);
+      return false;
     case 'lockedLayers':
       return fixLockedLayer(node as SceneNode);
     case 'groupInsteadOfFrame':
@@ -108,8 +124,6 @@ function baseFixAction(violation: Violation): FixAction {
       return 'unwrapFrame';
     case 'groupInsteadOfFrame':
       return 'convertGroup';
-    case 'zeroOpacity':
-      return 'changeVisibility';
     default:
       return 'default';
   }
@@ -173,6 +187,15 @@ export async function applyFixWithReason(
 
   if (!violation.fixable) {
     return { status: 'failed', violation, action, reason: 'Rule is not auto-fixable' };
+  }
+
+  if (DISABLED_AUTOFIX_RULES.has(violation.ruleId)) {
+    return {
+      status: 'failed',
+      violation,
+      action,
+      reason: 'Auto-fix is disabled to avoid changing the layout or layer state',
+    };
   }
 
   const node = figma.getNodeById(violation.nodeId);
@@ -290,15 +313,6 @@ function fixFractionalSize(node: SceneNode): boolean {
 function fixRemoveHiddenLayer(node: SceneNode): boolean {
   node.remove();
   return true;
-}
-
-function fixZeroOpacity(node: SceneNode): boolean {
-  if ('opacity' in node) {
-    const blendable = node as SceneNode & BlendMixin;
-    blendable.opacity = 1;
-    return true;
-  }
-  return false;
 }
 
 function fixLockedLayer(node: SceneNode): boolean {

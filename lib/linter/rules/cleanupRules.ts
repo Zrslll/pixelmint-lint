@@ -11,9 +11,9 @@ import { IMAGE_NAME_RE } from '../helpers';
 const zeroOpacity: LintRule = {
   id: 'zeroOpacity',
   name: 'Zero opacity',
-  description: 'Layers with 0% opacity are invisible and should be removed',
+  description: 'Layers with 0% opacity are invisible and should be reviewed',
   category: 'cleanup',
-  severity: 'info',
+  severity: 'warning',
   defaultEnabled: true,
   run(nodes) {
     const violations: Violation[] = [];
@@ -24,9 +24,9 @@ const zeroOpacity: LintRule = {
           ruleId: 'zeroOpacity',
           nodeId: node.id,
           nodeName: node.name,
-          severity: 'info',
-          message: 'Layer has 0% opacity — invisible',
-          fixable: true,
+          severity: 'warning',
+          message: 'Layer has 0% opacity — verify whether it is intentional',
+          fixable: false,
           category: 'cleanup',
         });
       }

@@ -1,7 +1,7 @@
 import { Violation } from '../../types';
 import { LintContext, rgbToHex } from '../collectStyles';
 import { LintRule } from '../engine';
-import { buildLABCache, findClosestPaintStyle, LABCache } from '../colorMatch';
+import { buildLABCache, findClosestPaintStyle, LABCache, MAX_SIMILAR_COLOR_DELTA_E } from '../colorMatch';
 import { matchPaintStyle, matchTextStyle, matchEffectStyle } from '../styleMatch';
 
 // ============================================================
@@ -92,7 +92,7 @@ const missingFillStyle: LintRule = {
         expected: match ? match.styleName : undefined,
         fixable: !!(match || hex),
         suggestedFixData: match?.styleId,
-        suggestedCreateData: hex || node.name,
+        suggestedCreateData: match ? undefined : hex || node.name,
         category: 'style',
       });
     }
@@ -196,7 +196,7 @@ const missingStrokeStyle: LintRule = {
         expected: match ? match.styleName : undefined,
         fixable: !!(match || hex),
         suggestedFixData: match?.styleId,
-        suggestedCreateData: hex || node.name,
+        suggestedCreateData: match ? undefined : hex || node.name,
         category: 'style',
       });
     }
@@ -270,7 +270,9 @@ const colorNotInPalette: LintRule = {
         if (fill.type !== 'SOLID' || fill.visible === false) continue;
         const hex = rgbToHex(fill.color.r, fill.color.g, fill.color.b);
         if (!context.paletteColors.has(hex)) {
-          const match = findClosestPaintStyle(fill.color.r, fill.color.g, fill.color.b, labCache);
+          const closest = findClosestPaintStyle(fill.color.r, fill.color.g, fill.color.b, labCache);
+          const match =
+            closest && closest.distance <= MAX_SIMILAR_COLOR_DELTA_E ? closest : null;
           violations.push({
             ruleId: 'colorNotInPalette',
             nodeId: node.id,
@@ -281,7 +283,7 @@ const colorNotInPalette: LintRule = {
             expected: match ? `${match.styleName} (${match.hex})` : undefined,
             fixable: true,
             suggestedFixData: match?.styleId,
-            suggestedCreateData: hex,
+            suggestedCreateData: match ? undefined : hex,
             category: 'style',
           });
           break; // One violation per node

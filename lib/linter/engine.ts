@@ -73,6 +73,53 @@ export interface AbortSignal {
 
 type ProgressCallback = (current: number, total: number, ruleName: string) => void;
 
+const HIDDEN_ONLY_RULES = new Set(['hiddenLayers']);
+const INSTANCE_NODE_RULES = new Set(['detachedInstance', 'deletedComponentInstance']);
+const UNSAFE_AUTOFIX_RULES = new Set([
+  'fractionalCoords',
+  'fractionalSize',
+  'groupInsteadOfFrame',
+  'singleChildFrame',
+  'nonStandardIconSize',
+  'fixedSizeText',
+  'textResizeFixed',
+  'textOverflow',
+  'autoLineHeight',
+  'lockedLayers',
+  'zeroOpacity',
+]);
+
+function hasAncestor(node: SceneNode, predicate: (node: BaseNode) => boolean): boolean {
+  let current: BaseNode | null = node.parent;
+  while (current && current.type !== 'DOCUMENT') {
+    if (predicate(current)) return true;
+    current = current.parent;
+  }
+  return false;
+}
+
+function isVisibleForLint(node: SceneNode): boolean {
+  if (node.visible === false) return false;
+  return !hasAncestor(
+    node,
+    (ancestor) => 'visible' in ancestor && (ancestor as SceneNode).visible === false
+  );
+}
+
+function isInsideInstance(node: SceneNode): boolean {
+  return hasAncestor(node, (ancestor) => ancestor.type === 'INSTANCE');
+}
+
+function nodesForRule(ruleId: string, nodes: SceneNode[]): SceneNode[] {
+  if (HIDDEN_ONLY_RULES.has(ruleId)) return nodes;
+  if (INSTANCE_NODE_RULES.has(ruleId)) {
+    return nodes.filter((node) => isVisibleForLint(node) && node.type === 'INSTANCE');
+  }
+  return nodes.filter(
+    (node) => isVisibleForLint(node) && node.type !== 'INSTANCE' && !isInsideInstance(node)
+  );
+}
+
 // Yield control to event loop so postMessage is delivered and Cancel works
 function yieldToUI(): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, 0));
@@ -111,7 +158,7 @@ export async function runLint(
     if (signal?.aborted) break;
 
     try {
-      const ruleViolations = await rule.run(nodes, context);
+      const ruleViolations = await rule.run(nodesForRule(rule.id, nodes), context);
       violations.push(...ruleViolations);
     } catch (e) {
       // #27 — Report failed rules as info-level violations
@@ -134,6 +181,12 @@ export async function runLint(
   for (const n of nodes) nodeTypeMap.set(n.id, n.type);
 
   for (const v of violations) {
+    if (UNSAFE_AUTOFIX_RULES.has(v.ruleId)) {
+      v.fixable = false;
+      v.suggestedFixData = undefined;
+      v.suggestedCreateData = undefined;
+    }
+
     if (!v.nodeId) continue;
     const nodeType = nodeTypeMap.get(v.nodeId);
     if (nodeType === 'COMPONENT') {

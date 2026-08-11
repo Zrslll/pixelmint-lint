@@ -2,7 +2,7 @@
 
 Open-source Figma plugin for automated design linting. Checks your file against its own design system — paint styles, text styles, effect styles, and variables as the source of truth. Zero config: the plugin reads what's already in your file.
 
-**42 rules · 12 auto-fixers · CIELAB color matching · Main Component protection**
+**42 rules · safe auto-fixers · CIELAB color matching · Main Component protection**
 
 ---
 
@@ -41,9 +41,9 @@ Each rule is backed by an industry source. 🔧 = has auto-fixer. ⊘ = disabled
 |---|------|----------|--------|
 | 10 | **Detached instance** — component instance missing its main component | 🔴 Critical | [Figma · Components](https://help.figma.com/hc/en-us/articles/360038662654) |
 | 11 | **Hidden layers** — invisible layers cluttering the file | 🟡 Warning 🔧 | [Figma · Best practices](https://www.figma.com/best-practices/components-styles-and-shared-libraries/) |
-| 12 | **Group instead of Frame** — Groups lack auto-layout and clipping control | 🟡 Warning 🔧 | [Figma · Groups vs Frames](https://www.figma.com/best-practices/groups-versus-frames/) |
-| 13 | **Fractional coordinates** — non-integer x/y causes sub-pixel blur on export | 🔴 Critical 🔧 | [Figma · Pixel precision](https://help.figma.com/hc/en-us/articles/360039956974) · [MDN · image-rendering](https://developer.mozilla.org/en-US/docs/Web/CSS/image-rendering) |
-| 14 | **Fractional size** — non-integer width/height causes sub-pixel blur | 🔴 Critical 🔧 | [Figma · Pixel precision](https://help.figma.com/hc/en-us/articles/360039956974) |
+| 12 | **Group instead of Frame** — Groups lack auto-layout and clipping control | 🟡 Warning | [Figma · Groups vs Frames](https://www.figma.com/best-practices/groups-versus-frames/) |
+| 13 | **Fractional coordinates** — non-integer x/y causes sub-pixel blur on export | 🔴 Critical | [Figma · Pixel precision](https://help.figma.com/hc/en-us/articles/360039956974) · [MDN · image-rendering](https://developer.mozilla.org/en-US/docs/Web/CSS/image-rendering) |
+| 14 | **Fractional size** — non-integer width/height causes sub-pixel blur | 🔴 Critical | [Figma · Pixel precision](https://help.figma.com/hc/en-us/articles/360039956974) |
 | 15 | **Missing export settings** — icons and images have no export config | 🟡 Warning 🔧 | [Figma · Export assets](https://help.figma.com/hc/en-us/articles/360040028114) |
 | 16 | **Missing state variants** — interactive component set missing hover/disabled | 🟡 Warning | [Figma · Interactive components](https://help.figma.com/hc/en-us/articles/360061175334) · [WCAG 1.4.11 Non-text Contrast](https://www.w3.org/TR/WCAG21/#non-text-contrast) |
 
@@ -63,13 +63,13 @@ Each rule is backed by an industry source. 🔧 = has auto-fixer. ⊘ = disabled
 |---|------|----------|--------|
 | 20 | **Duplicate objects** — two sibling elements at identical position and size | 🟡 Warning | File hygiene — accidental copies from Cmd+D |
 | 21 | **Spacing not multiple of base** — gap/padding not divisible by 4 or 8px | 🟡 Warning | [Material Design · 8dp grid](https://m2.material.io/design/layout/understanding-layout.html) · [Spec · 8-point grid](https://spec.fm/specifics/8-pt-grid) |
-| 22 | **Fixed size text** — text node set to Fixed instead of Hug/Fill | 🟡 Warning 🔧 | [Figma · Auto layout text](https://help.figma.com/hc/en-us/articles/360040451373) |
-| 23 | **Auto line height** — line-height set to Auto instead of an explicit value | 🟡 Warning 🔧 | [Material · Typography properties](https://m2.material.io/design/typography/understanding-typography.html#type-properties) |
-| 24 | **Text truncation** — text resize set to Truncate, content may be hidden | 🟡 Warning 🔧 | [Figma · Text resize](https://help.figma.com/hc/en-us/articles/360039956854) |
+| 22 | **Fixed size text** — text node set to Fixed instead of Hug/Fill | 🟡 Warning | [Figma · Auto layout text](https://help.figma.com/hc/en-us/articles/360040451373) |
+| 23 | **Auto line height** — line-height set to Auto instead of an explicit value | 🟡 Warning | [Material · Typography properties](https://m2.material.io/design/typography/understanding-typography.html#type-properties) |
+| 24 | **Text truncation** — text resize set to Truncate, content may be hidden | 🟡 Warning | [Figma · Text resize](https://help.figma.com/hc/en-us/articles/360039956854) |
 | 25 | **Absolute in AutoLayout** — absolutely-positioned child breaks auto-layout flow | 🟡 Warning | [Figma · Absolute position in auto layout](https://help.figma.com/hc/en-us/articles/360040451373) |
 | 26 | **Missing auto layout** — frame with 2+ children and no auto layout | 🟡 Warning | [Figma · Auto layout](https://help.figma.com/hc/en-us/articles/360040451373) |
-| 27 | **Non-standard icon size** — icon dimensions not in allowed sizes (16/20/24/32px) | 🟡 Warning 🔧 | [Material Design · System icons](https://m2.material.io/design/iconography/system-icons.html) · [Apple · SF Symbols](https://developer.apple.com/design/human-interface-guidelines/sf-symbols) |
-| 28 | **Text overflow** — text render bounds exceed its bounding box | 🟡 Warning 🔧 | Layout correctness — text clipped by container |
+| 27 | **Non-standard icon size** — icon dimensions not in allowed sizes (16/20/24/32px) | 🟡 Warning | [Material Design · System icons](https://m2.material.io/design/iconography/system-icons.html) · [Apple · SF Symbols](https://developer.apple.com/design/human-interface-guidelines/sf-symbols) |
+| 28 | **Text overflow** — text render bounds exceed its bounding box | 🟡 Warning | Layout correctness — text clipped by container |
 | 29 | **Inconsistent spacing** — sibling auto-layout frames use different item gaps | ℹ️ Info | [8-point grid system](https://m2.material.io/design/layout/understanding-layout.html) |
 
 ### ♿ Accessibility
@@ -84,15 +84,15 @@ Each rule is backed by an industry source. 🔧 = has auto-fixer. ⊘ = disabled
 
 | # | Rule | Severity | Source |
 |---|------|----------|--------|
-| 33 | **Zero opacity** ⊘ — layer at 0% opacity is invisible | ℹ️ Info 🔧 | File hygiene |
-| 34 | **Locked layers** ⊘ — layer is locked (forgotten lock) | ℹ️ Info 🔧 | Collaboration hygiene |
+| 33 | **Zero opacity** ⊘ — layer at 0% opacity is invisible | 🟡 Warning | File hygiene |
+| 34 | **Locked layers** ⊘ — layer is locked (forgotten lock) | ℹ️ Info | Collaboration hygiene |
 | 35 | **Empty containers** ⊘ — frame or group with no children | ℹ️ Info 🔧 | File hygiene |
 | 36 | **Deep nesting** ⊘ — layer depth exceeds configured limit | ℹ️ Info | [Figma performance](https://help.figma.com/hc/en-us/articles/360039820334) — deep trees slow rendering and dev handoff |
 | 37 | **Child overflow** ⊘ — child element extends beyond parent bounds | ℹ️ Info | Layout correctness |
 | 38 | **Stroke-based icons** ⊘ — small vector with strokes and no fill | ℹ️ Info | SVG export — strokes scale with viewport; outline strokes for consistent export |
 | 39 | **No component description** ⊘ — component or component set has no description | ℹ️ Info 🔧 | [Figma · Component descriptions](https://help.figma.com/hc/en-us/articles/360038663994) |
 | 40 | **Image placeholder without fill** ⊘ — shape named "image/photo/avatar" has no fill | ℹ️ Info | Design hygiene — placeholder with no visual indicator |
-| 41 | **Single child frame** ⊘ — frame with one child and no visual properties | ℹ️ Info 🔧 | File hygiene — unnecessary wrapper adds nesting depth |
+| 41 | **Single child frame** ⊘ — frame with one child and no visual properties | ℹ️ Info | File hygiene — unnecessary wrapper adds nesting depth |
 | 42 | **Unused component** ⊘ (off by default) — component has no instances in selection | ℹ️ Info | Design system maintenance |
 
 ---
@@ -107,28 +107,29 @@ Each rule is backed by an industry source. 🔧 = has auto-fixer. ⊘ = disabled
 
 ---
 
-## Auto-fixers (12)
+## Safe auto-fixers
 
 | Fixer | Action |
 |-------|--------|
-| Apply paint style | Links fill/stroke to closest local style (CIELAB match) |
+| Apply paint style | Links fill/stroke only to a visually similar local style (CIELAB DeltaE ≤ 10) |
+| Create paint style | Creates a new paint style only when no similar local color exists |
 | Apply text style | Links text node to matching local text style |
+| Create text style | Creates a new text style from the current text properties |
 | Apply effect style | Links effect to matching local effect style |
-| Round coordinates | Rounds x/y to nearest integer |
-| Round dimensions | Rounds width/height to nearest integer |
+| Create effect style | Creates a new effect style from current effects |
 | Set export settings | Adds SVG @1x for icons, PNG @2x for images |
-| Convert group to frame | Replaces Group with Frame, preserving children |
-| Resize icon | Snaps icon to nearest standard size |
-| Fix text resize | Sets text auto-resize to Hug |
-| Fix line height | Sets explicit line-height (120% of font size) |
-| Remove hidden layer | Deletes hidden layers |
-| Unwrap single child | Moves child to parent level, removes wrapper frame |
+| Rename layers | Renames default frame/layer/component-set names from suggestions |
+| Add component description | Adds a suggested description to main components/component sets |
+| Remove hidden layer | Deletes hidden layers after confirmation |
+| Remove empty container | Deletes empty frames/groups after confirmation |
+
+Geometry/layout-changing recommendations such as rounding coordinates or sizes, resizing icons, converting groups, unwrapping frames, changing text resize/line-height, unlocking layers, and 0% opacity are reported without auto-fix.
 
 ---
 
 ## Main Component protection
 
-Violations on Main Components are shown in the report but **no fix is offered**. Auto-fixing a Main Component would propagate changes to all its instances across the file — that should always be a deliberate decision.
+Violations on Main Components are shown in the report, but visual/layout/style fixes are not offered. The only safe exception is adding a component description. Auto-fixing visual or structural properties of a Main Component would propagate changes to all its instances across the file — that should always be a deliberate decision.
 
 ---
 

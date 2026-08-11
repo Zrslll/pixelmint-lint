@@ -1,5 +1,5 @@
 import { PaintStyleInfo, TextStyleInfo, EffectStyleInfo } from './collectStyles';
-import { rgbToLab, deltaE, buildLABCache, LABCache } from './colorMatch';
+import { rgbToLab, deltaE, LABCache, MAX_SIMILAR_COLOR_DELTA_E } from './colorMatch';
 
 // ============================================================
 // Style matching — find best matching style for a node
@@ -30,6 +30,8 @@ export function matchPaintStyle(
 
   for (const entry of labCache.entries) {
     const dist = deltaE(targetLab, entry.lab);
+    if (dist > MAX_SIMILAR_COLOR_DELTA_E) continue;
+
     // Score: 100 for exact match, 0 at distance 30+
     const score = Math.max(0, 100 - dist * (100 / 30));
     if (score > bestScore) {

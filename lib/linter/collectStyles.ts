@@ -125,6 +125,15 @@ export function flattenNodes(nodes: readonly SceneNode[]): SceneNode[] {
   while (stack.length > 0) {
     const node = stack.pop()!;
     result.push(node);
+
+    // Hidden nodes are reported only by the hidden-layers rule.
+    // Their internals should not produce style/layout/a11y noise.
+    if (node.visible === false) continue;
+
+    // Component copies are not the source of truth. Lint the instance node itself
+    // for instance-level problems, but do not inspect its overridden internals.
+    if (node.type === 'INSTANCE') continue;
+
     if ('children' in node) {
       for (let i = node.children.length - 1; i >= 0; i--) {
         stack.push(node.children[i]);

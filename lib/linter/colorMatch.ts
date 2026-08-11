@@ -10,6 +10,8 @@ interface LAB {
   b: number;
 }
 
+export const MAX_SIMILAR_COLOR_DELTA_E = 10;
+
 export interface ColorMatchResult {
   styleId: string;
   styleName: string;
