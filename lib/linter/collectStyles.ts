@@ -59,14 +59,14 @@ function extractColorsFromPaints(paints: readonly Paint[]): string[] {
   return colors;
 }
 
-export function collectStyles(settings: LintSettings): LintContext {
-  const paintStyles: PaintStyleInfo[] = figma.getLocalPaintStyles().map((s) => ({
+export async function collectStyles(settings: LintSettings): Promise<LintContext> {
+  const paintStyles: PaintStyleInfo[] = (await figma.getLocalPaintStylesAsync()).map((s) => ({
     id: s.id,
     name: s.name,
     paints: s.paints,
   }));
 
-  const textStyles: TextStyleInfo[] = figma.getLocalTextStyles().map((s) => ({
+  const textStyles: TextStyleInfo[] = (await figma.getLocalTextStylesAsync()).map((s) => ({
     id: s.id,
     name: s.name,
     fontSize: s.fontSize,
@@ -75,7 +75,7 @@ export function collectStyles(settings: LintSettings): LintContext {
     letterSpacing: s.letterSpacing,
   }));
 
-  const effectStyles: EffectStyleInfo[] = figma.getLocalEffectStyles().map((s) => ({
+  const effectStyles: EffectStyleInfo[] = (await figma.getLocalEffectStylesAsync()).map((s) => ({
     id: s.id,
     name: s.name,
     effects: s.effects,
@@ -84,10 +84,10 @@ export function collectStyles(settings: LintSettings): LintContext {
   // Collect variables (if API available)
   const variables: VariableInfo[] = [];
   try {
-    const collections = figma.variables.getLocalVariableCollections();
+    const collections = await figma.variables.getLocalVariableCollectionsAsync();
     for (const collection of collections) {
       for (const varId of collection.variableIds) {
-        const v = figma.variables.getVariableById(varId);
+        const v = await figma.variables.getVariableByIdAsync(varId);
         if (v) {
           variables.push({
             id: v.id,

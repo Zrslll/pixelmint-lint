@@ -45,7 +45,7 @@ async function handleLintRun() {
 
   try {
     const settings = await loadSettings();
-    const context = collectStyles(settings);
+    const context = await collectStyles(settings);
     const result = await runLint(
       selection,
       context,
@@ -121,11 +121,15 @@ async function handleLintFixSingle(message: Extract<PluginMessage, { type: 'LINT
   }
 }
 
-function handleNavigate(nodeId: string) {
-  const node = figma.getNodeById(nodeId);
-  if (node && 'x' in node) {
-    figma.currentPage.selection = [node as SceneNode];
-    figma.viewport.scrollAndZoomIntoView([node as SceneNode]);
+async function handleNavigate(nodeId: string) {
+  try {
+    const node = await figma.getNodeByIdAsync(nodeId);
+    if (node && 'x' in node) {
+      figma.currentPage.selection = [node as SceneNode];
+      figma.viewport.scrollAndZoomIntoView([node as SceneNode]);
+    }
+  } catch (e: any) {
+    send({ type: 'LINT_ERROR', error: e?.message || 'Could not navigate to node' });
   }
 }
 
@@ -164,7 +168,7 @@ figma.ui.onmessage = async (message: IncomingMessage) => {
       break;
 
     case 'LINT_NAVIGATE':
-      handleNavigate(message.nodeId);
+      await handleNavigate(message.nodeId);
       break;
 
     case 'SETTINGS_LOAD':

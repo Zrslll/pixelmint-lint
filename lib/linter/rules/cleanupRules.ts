@@ -384,11 +384,7 @@ const deletedComponentInstance: LintRule = {
       try {
         mainComponent = await inst.getMainComponentAsync();
       } catch {
-        try {
-          mainComponent = inst.mainComponent;
-        } catch {
-          mainComponent = null;
-        }
+        mainComponent = null;
       }
       if (mainComponent) continue;
 

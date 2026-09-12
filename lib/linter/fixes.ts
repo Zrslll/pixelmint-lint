@@ -21,7 +21,7 @@ const DISABLED_AUTOFIX_RULES = new Set([
 export async function applyFix(violation: Violation): Promise<boolean> {
   if (DISABLED_AUTOFIX_RULES.has(violation.ruleId)) return false;
 
-  const node = figma.getNodeById(violation.nodeId);
+  const node = await figma.getNodeByIdAsync(violation.nodeId);
   if (!node || node.removed) return false;
 
   switch (violation.ruleId) {
@@ -198,52 +198,52 @@ export async function applyFixWithReason(
     };
   }
 
-  const node = figma.getNodeById(violation.nodeId);
-  if (!node || node.removed) {
-    return { status: 'failed', violation, action, reason: 'Node no longer exists' };
-  }
-
-  if (node.type === 'INSTANCE') {
-    return {
-      status: 'failed',
-      violation,
-      action,
-      reason: 'Instances must be fixed on the main component',
-    };
-  }
-
-  if (node.type === 'COMPONENT' && !COMPONENT_FIX_ALLOWLIST.has(violation.ruleId)) {
-    return {
-      status: 'failed',
-      violation,
-      action,
-      reason: 'Main component is protected for this fix',
-    };
-  }
-
-  if (isRiskyAction(action) && options.confirmed !== true) {
-    return {
-      status: 'pendingConfirmation',
-      violation,
-      action,
-      reason:
-        action === 'createStyle'
-          ? 'Requires explicit confirmation to create style'
-          : 'Requires explicit confirmation',
-    };
-  }
-
-  if (action === 'createStyle' && !violation.suggestedCreateData) {
-    return { status: 'failed', violation, action, reason: 'Missing create style data' };
-  }
-
-  const fixViolation = action === 'createStyle' ? withCreateStyleData(violation) : violation;
-
-  if (REQUIRED_FIX_DATA_RULES.has(fixViolation.ruleId) && !fixViolation.suggestedFixData) {
-    return { status: 'failed', violation, action, reason: 'Missing fix data' };
-  }
-
   try {
+    const node = await figma.getNodeByIdAsync(violation.nodeId);
+    if (!node || node.removed) {
+      return { status: 'failed', violation, action, reason: 'Node no longer exists' };
+    }
+
+    if (node.type === 'INSTANCE') {
+      return {
+        status: 'failed',
+        violation,
+        action,
+        reason: 'Instances must be fixed on the main component',
+      };
+    }
+
+    if (node.type === 'COMPONENT' && !COMPONENT_FIX_ALLOWLIST.has(violation.ruleId)) {
+      return {
+        status: 'failed',
+        violation,
+        action,
+        reason: 'Main component is protected for this fix',
+      };
+    }
+
+    if (isRiskyAction(action) && options.confirmed !== true) {
+      return {
+        status: 'pendingConfirmation',
+        violation,
+        action,
+        reason:
+          action === 'createStyle'
+            ? 'Requires explicit confirmation to create style'
+            : 'Requires explicit confirmation',
+      };
+    }
+
+    if (action === 'createStyle' && !violation.suggestedCreateData) {
+      return { status: 'failed', violation, action, reason: 'Missing create style data' };
+    }
+
+    const fixViolation = action === 'createStyle' ? withCreateStyleData(violation) : violation;
+
+    if (REQUIRED_FIX_DATA_RULES.has(fixViolation.ruleId) && !fixViolation.suggestedFixData) {
+      return { status: 'failed', violation, action, reason: 'Missing fix data' };
+    }
+
     const success = await applyFix(fixViolation);
     if (success) return { status: 'fixed', violation, action };
     return { status: 'failed', violation, action, reason: reasonForFalse(violation) };
@@ -406,11 +406,11 @@ async function fixTextResize(node: TextNode): Promise<boolean> {
 
 // ---- New fixers: style matching, naming, descriptions ----
 
-function fixApplyPaintStyle(
+async function fixApplyPaintStyle(
   node: SceneNode,
   data: string | undefined,
   target: 'fill' | 'stroke'
-): boolean {
+): Promise<boolean> {
   if (!data) return false;
   try {
     if (data.startsWith('new:')) {
@@ -420,19 +420,19 @@ function fixApplyPaintStyle(
       if (target === 'fill' && 'fills' in node) {
         const fills = (node as any).fills;
         if (fills !== figma.mixed) style.paints = fills;
-        (node as any).fillStyleId = style.id;
+        await node.setFillStyleIdAsync(style.id);
       } else if (target === 'stroke' && 'strokes' in node) {
         style.paints = (node as any).strokes;
-        (node as any).strokeStyleId = style.id;
+        await node.setStrokeStyleIdAsync(style.id);
       }
       return true;
     }
     if (target === 'fill' && 'fillStyleId' in node) {
-      (node as any).fillStyleId = data;
+      await node.setFillStyleIdAsync(data);
       return true;
     }
     if (target === 'stroke' && 'strokeStyleId' in node) {
-      (node as any).strokeStyleId = data;
+      await node.setStrokeStyleIdAsync(data);
       return true;
     }
     return false;
@@ -455,21 +455,21 @@ async function fixApplyTextStyle(node: TextNode, data: string | undefined): Prom
       style.fontSize = typeof node.fontSize === 'number' ? node.fontSize : 16;
       if (node.lineHeight !== figma.mixed) style.lineHeight = node.lineHeight;
       if (node.letterSpacing !== figma.mixed) style.letterSpacing = node.letterSpacing;
-      node.textStyleId = style.id;
+      await node.setTextStyleIdAsync(style.id);
       return true;
     }
     // Load font before applying style to avoid crashes
     if (node.fontName !== figma.mixed) {
       await figma.loadFontAsync(node.fontName);
     }
-    (node as any).textStyleId = data;
+    await node.setTextStyleIdAsync(data);
     return true;
   } catch {
     return false;
   }
 }
 
-function fixApplyEffectStyle(node: SceneNode, data: string | undefined): boolean {
+async function fixApplyEffectStyle(node: SceneNode, data: string | undefined): Promise<boolean> {
   if (!data) return false;
   try {
     if (data.startsWith('new:')) {
@@ -478,11 +478,11 @@ function fixApplyEffectStyle(node: SceneNode, data: string | undefined): boolean
       const style = figma.createEffectStyle();
       style.name = styleName;
       style.effects = (node as any).effects;
-      (node as any).effectStyleId = style.id;
+      await node.setEffectStyleIdAsync(style.id);
       return true;
     }
     if ('effectStyleId' in node) {
-      (node as any).effectStyleId = data;
+      await node.setEffectStyleIdAsync(data);
       return true;
     }
     return false;
